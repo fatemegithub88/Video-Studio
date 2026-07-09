@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Studio</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+<header>
+    <h1>🎬 AI Video Studio</h1>
+    <p>Subtitle • Audio • Quality • Compression Tools</p>
+</header>
+
+<!-- Main Grid -->
+<div class="grid">
+
+    <!-- Subtitle -->
+    <div class="card">
+        <h2>🎬 Subtitle Video</h2>
+        <input id="sub-url" type="text" placeholder="Enter video URL">
+        <button onclick="subtitleVideo()">Generate Subtitle</button>
+    </div>
+
+    <!-- Noise Removal -->
+    <div class="card">
+        <h2>🔊 Noise Removal</h2>
+        <input id="noise-url" type="text" placeholder="Video URL">
+
+        <button onclick="noiseRemove()">Remove Noise</button>
+    </div>
+
+    <!-- Audio Extract -->
+    <div class="card">
+        <h2>🎧 Extract Audio</h2>
+        <input id="audio-url" type="text" placeholder="Video URL">
+
+        <select id="audio-format">
+            <option value="mp3">MP3</option>
+            <option value="wav">WAV</option>
+            <option value="m4a">M4A</option>
+            <option value="opus">OPUS</option>
+        </select>
+
+        <button onclick="extractAudio()">Extract Audio</button>
+    </div>
+
+    <!-- Quality -->
+    <div class="card">
+        <h2>📺 Change Quality</h2>
+        <input id="quality-url" type="text" placeholder="Video URL">
+
+        <select id="quality-level">
+            <option value="360p">360p</option>
+            <option value="480p">480p</option>
+            <option value="720p">720p</option>
+            <option value="1080p">1080p</option>
+        </select>
+
+        <button onclick="changeQuality()">Convert Quality</button>
+    </div>
+
+    <!-- Compress -->
+    <div class="card">
+        <h2>🗜 Compress Video</h2>
+        <input id="compress-url" type="text" placeholder="Video URL">
+
+        <select id="compress-level">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+        </select>
+
+        <button onclick="compressVideo()">Compress</button>
+    </div>
+
+    <!-- Audio Boost -->
+    <div class="card">
+        <h2>🔊 Audio Boost</h2>
+        <input id="boost-url" type="text" placeholder="Video URL">
+
+        <select id="boost-volume">
+            <option value="1.0">Normal</option>
+            <option value="1.5">+50%</option>
+            <option value="2.0">+100%</option>
+        </select>
+
+        <button onclick="audioBoost()">Boost Audio</button>
+    </div>
+
+    <!-- Convert Video -->
+    <div class="card">
+        <h2>🔄 Convert Format</h2>
+        <input id="convert-url" type="text" placeholder="Video URL">
+
+        <select id="convert-format">
+            <option value="mp4">MP4</option>
+            <option value="mkv">MKV</option>
+            <option value="webm">WEBM</option>
+            <option value="mov">MOV</option>
+        </select>
+
+        <button onclick="convertVideo()">Convert</button>
+    </div>
+
+    <!-- Change Speed -->
+    <div class="card">
+        <h2>⚡ Change Speed</h2>
+
+        <input
+            id="speed-url"
+            type="text"
+            placeholder="Video URL">
+
+        <select id="speed-value">
+            <option value="0.25">0.25x</option>
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1">1x (Normal)</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+            <option value="5">5x</option>
+        </select>
+
+        <button onclick="changeSpeed()">
+            Change Speed
+        </button>
+    </div>
+
+    <!-- Trim Video -->
+    <div class="card">
+        <h2>✂ Trim Video</h2>
+        <input id="trim-url" type="text" placeholder="Video URL">
+        <input id="trim-start" type="number" placeholder="Start (sec)">
+        <input id="trim-end" type="number" placeholder="End (sec)">
+
+        <button onclick="trimVideo()">Trim</button>
+    </div>
+
+</div>
+
+
+<!-- ========================= -->
+<!-- Preview -->
+<!-- ========================= -->
+
+<div class="card" style="margin-top:30px;">
+    <h2>🎥 Video Preview</h2>
+
+    <video
+        id="preview-video"
+        controls
+        playsinline
+        width="100%"
+        style="display:none;border-radius:12px;background:#000;">
+    </video>
+
+    <audio
+        id="preview-audio"
+        controls
+        style="display:none;width:100%;margin-top:15px;">
+    </audio>
+
+    <br><br>
+
+    <a
+        id="download-link"
+        href="#"
+        download
+        style="display:none;"
+        class="btn">
+        ⬇ Download Result
+    </a>
+</div>
+
+</div>
+
+
+
+<script src="/static/script.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
