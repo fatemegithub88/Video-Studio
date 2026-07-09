@@ -33,7 +33,12 @@ def clean_outputs():
 
         for filename in os.listdir(OUTPUT_DIR):
 
+            # Keep git placeholder file
+            if filename == ".gitkeep":
+                continue
+
             filepath = os.path.join(OUTPUT_DIR, filename)
+
             if not os.path.isfile(filepath):
                 continue
 
