@@ -244,48 +244,61 @@ TEMP_DIR = "temp"
 
 
 # -------------------------------------------------
-# Download Video
+# Download stable mp4
 # -------------------------------------------------
 
-def download_video(link):
+def download_video(url):
 
     os.makedirs(TEMP_DIR, exist_ok=True)
 
     uid = uuid.uuid4().hex
 
-    output_template = f"{TEMP_DIR}/{uid}.%(ext)s"
+    filename = f"{TEMP_DIR}/{uid}.mp4"
 
 
     ydl_opts = {
 
-        "format": "bestvideo+bestaudio/best",
+        "format":
+        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
 
         "merge_output_format": "mp4",
 
-        "outtmpl": output_template,
+        "outtmpl": filename,
 
         "noplaylist": True,
 
-        "quiet": True
+        "quiet": True,
+
+        "postprocessors": [
+            {
+                "key": "FFmpegVideoConvertor",
+                "preferedformat": "mp4"
+            }
+        ]
     }
 
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([link])
+        ydl.download([url])
 
 
-    for file in os.listdir(TEMP_DIR):
+    if os.path.exists(filename):
+        return filename
 
-        if file.startswith(uid):
+
+    # fallback search
+    for f in os.listdir(TEMP_DIR):
+
+        if f.startswith(uid):
 
             return os.path.join(
                 TEMP_DIR,
-                file
+                f
             )
 
 
-    raise FileNotFoundError(
-        "Video download failed"
+    raise Exception(
+        "Download failed"
     )
 
 
@@ -297,71 +310,88 @@ def download_video(link):
 def convert_format(
     input_file,
     output_file,
-    output_format
+    target_format
 ):
 
 
-    formats = {
+    if target_format not in [
+        "mp4",
+        "mkv",
+        "mov",
+        "webm"
+    ]:
+        target_format = "mp4"
 
-        "mp4": {
-            "vcodec": "libx264",
-            "acodec": "aac"
-        },
-
-        "mkv": {
-            "vcodec": "libx264",
-            "acodec": "aac"
-        },
-
-        "mov": {
-            "vcodec": "libx264",
-            "acodec": "aac"
-        },
-
-        "webm": {
-            "vcodec": "libvpx-vp9",
-            "acodec": "libopus"
-        }
-
-    }
-
-
-    codec = formats.get(
-        output_format,
-        formats["mp4"]
-    )
 
 
     try:
 
-        (
-            ffmpeg
-            .input(input_file)
-            .output(
-                output_file,
-                vcodec=codec["vcodec"],
-                acodec=codec["acodec"],
-                movflags="+faststart"
-            )
-            .run(
-                overwrite_output=True,
-                capture_stdout=True,
-                capture_stderr=True
-            )
+        stream = ffmpeg.input(
+            input_file
         )
+
+
+        video = stream.video
+
+        audio = stream.audio
+
+
+
+        if target_format == "webm":
+
+            (
+                ffmpeg
+                .output(
+                    video,
+                    audio,
+                    output_file,
+                    vcodec="libvpx-vp9",
+                    acodec="libopus",
+                    crf=30,
+                    deadline="good"
+                )
+                .run(
+                    overwrite_output=True,
+                    capture_stdout=True,
+                    capture_stderr=True
+                )
+            )
+
+
+        else:
+
+            (
+                ffmpeg
+                .output(
+                    video,
+                    audio,
+                    output_file,
+                    vcodec="libx264",
+                    acodec="aac",
+                    preset="medium",
+                    movflags="+faststart"
+                )
+                .run(
+                    overwrite_output=True,
+                    capture_stdout=True,
+                    capture_stderr=True
+                )
+            )
+
 
 
     except ffmpeg.Error as e:
 
-        print(
-            "FFMPEG ERROR:"
+        error = e.stderr.decode(
+            errors="ignore"
         )
 
         print(
-            e.stderr.decode()
+            error
         )
 
-        raise
+        raise Exception(error)
+
 
 
     return output_file
@@ -376,7 +406,7 @@ def cleanup(path):
 
     try:
 
-        if os.path.exists(path):
+        if path and os.path.exists(path):
 
             os.remove(path)
 
@@ -387,12 +417,12 @@ def cleanup(path):
 
 
 # -------------------------------------------------
-# Main Pipeline
+# Main
 # -------------------------------------------------
 
 def create_converted_video(
-    url: str,
-    output_format: str
+    url:str,
+    output_format:str
 ):
 
 
@@ -402,34 +432,38 @@ def create_converted_video(
     )
 
 
-    video_file = None
+    source = None
 
 
     try:
 
-        video_file = download_video(url)
+
+        source = download_video(
+            url
+        )
 
 
         uid = uuid.uuid4().hex
 
 
-        output_file = (
+        output = (
             f"{OUTPUT_DIR}/{uid}.{output_format}"
         )
 
 
         convert_format(
-            video_file,
-            output_file,
+            source,
+            output,
             output_format
         )
 
 
-        return output_file
+        return output
+
 
 
     finally:
 
-        if video_file:
-
-            cleanup(video_file)
+        cleanup(
+            source
+        )
