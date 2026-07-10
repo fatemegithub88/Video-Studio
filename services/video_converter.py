@@ -243,42 +243,39 @@ OUTPUT_DIR = "static/outputs"
 TEMP_DIR = "temp"
 
 
-# -------------------------------------------------
-# Download stable mp4
-# -------------------------------------------------
 
 def download_video(url):
 
-    os.makedirs(TEMP_DIR, exist_ok=True)
+    os.makedirs(
+        TEMP_DIR,
+        exist_ok=True
+    )
 
     uid = uuid.uuid4().hex
 
     filename = f"{TEMP_DIR}/{uid}.mp4"
 
 
-    ydl_opts = {
+    options = {
 
         "format":
-        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
+        "best[ext=mp4]/best",
 
-        "merge_output_format": "mp4",
+        "outtmpl":
+        filename,
 
-        "outtmpl": filename,
+        "merge_output_format":
+        "mp4",
 
-        "noplaylist": True,
+        "noplaylist":
+        True,
 
-        "quiet": True,
-
-        "postprocessors": [
-            {
-                "key": "FFmpegVideoConvertor",
-                "preferedformat": "mp4"
-            }
-        ]
+        "quiet":
+        True
     }
 
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL(options) as ydl:
         ydl.download([url])
 
 
@@ -286,11 +283,9 @@ def download_video(url):
         return filename
 
 
-    # fallback search
     for f in os.listdir(TEMP_DIR):
 
         if f.startswith(uid):
-
             return os.path.join(
                 TEMP_DIR,
                 f
@@ -303,41 +298,28 @@ def download_video(url):
 
 
 
-# -------------------------------------------------
-# Convert Format
-# -------------------------------------------------
-
 def convert_format(
     input_file,
     output_file,
-    target_format
+    output_format
 ):
-
-
-    if target_format not in [
-        "mp4",
-        "mkv",
-        "mov",
-        "webm"
-    ]:
-        target_format = "mp4"
-
 
 
     try:
 
-        stream = ffmpeg.input(
+
+        inp = ffmpeg.input(
             input_file
         )
 
 
-        video = stream.video
+        video = inp.video
 
-        audio = stream.audio
+        audio = inp.audio
 
 
 
-        if target_format == "webm":
+        if output_format == "webm":
 
             (
                 ffmpeg
@@ -347,18 +329,20 @@ def convert_format(
                     output_file,
                     vcodec="libvpx-vp9",
                     acodec="libopus",
-                    crf=30,
-                    deadline="good"
+                    pix_fmt="yuv420p"
+                )
+                .global_args(
+                    "-loglevel",
+                    "error"
                 )
                 .run(
-                    overwrite_output=True,
-                    capture_stdout=True,
-                    capture_stderr=True
+                    overwrite_output=True
                 )
             )
 
 
         else:
+
 
             (
                 ffmpeg
@@ -366,15 +350,31 @@ def convert_format(
                     video,
                     audio,
                     output_file,
+
                     vcodec="libx264",
+
                     acodec="aac",
+
+                    video_bitrate="2500k",
+
+                    audio_bitrate="128k",
+
+                    ar=44100,
+
+                    ac=2,
+
+                    pix_fmt="yuv420p",
+
                     preset="medium",
+
                     movflags="+faststart"
                 )
+                .global_args(
+                    "-loglevel",
+                    "error"
+                )
                 .run(
-                    overwrite_output=True,
-                    capture_stdout=True,
-                    capture_stderr=True
+                    overwrite_output=True
                 )
             )
 
@@ -382,15 +382,13 @@ def convert_format(
 
     except ffmpeg.Error as e:
 
-        error = e.stderr.decode(
-            errors="ignore"
-        )
-
         print(
-            error
+            e.stderr.decode(
+                errors="ignore"
+            )
         )
 
-        raise Exception(error)
+        raise
 
 
 
@@ -398,9 +396,6 @@ def convert_format(
 
 
 
-# -------------------------------------------------
-# Cleanup
-# -------------------------------------------------
 
 def cleanup(path):
 
@@ -416,9 +411,6 @@ def cleanup(path):
 
 
 
-# -------------------------------------------------
-# Main
-# -------------------------------------------------
 
 def create_converted_video(
     url:str,
@@ -461,8 +453,8 @@ def create_converted_video(
         return output
 
 
-
     finally:
+
 
         cleanup(
             source
