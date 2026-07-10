@@ -304,97 +304,66 @@ def convert_format(
     output_format
 ):
 
+    codecs = {
 
-    try:
+        "mp4": {
+            "vcodec": "libx264",
+            "acodec": "aac"
+        },
 
+        "mkv": {
+            "vcodec": "libx264",
+            "acodec": "aac"
+        },
 
-        inp = ffmpeg.input(
-            input_file
+        "mov": {
+            "vcodec": "libx264",
+            "acodec": "aac"
+        },
+
+        "webm": {
+            "vcodec": "libvpx-vp9",
+            "acodec": "libopus"
+        }
+
+    }
+
+    codec = codecs.get(
+        output_format,
+        codecs["mp4"]
+    )
+
+    (
+        ffmpeg
+        .input(input_file)
+
+        .output(
+
+            output_file,
+
+            vcodec=codec["vcodec"],
+
+            acodec=codec["acodec"],
+
+            preset="veryfast",
+
+            crf=23,
+
+            pix_fmt="yuv420p",
+
+            audio_bitrate="128k",
+
+            movflags="faststart"
+
         )
 
+        .overwrite_output()
 
-        video = inp.video
-
-        audio = inp.audio
-
-
-
-        if output_format == "webm":
-
-            (
-                ffmpeg
-                .output(
-                    video,
-                    audio,
-                    output_file,
-                    vcodec="libvpx-vp9",
-                    acodec="libopus",
-                    pix_fmt="yuv420p"
-                )
-                .global_args(
-                    "-loglevel",
-                    "error"
-                )
-                .run(
-                    overwrite_output=True
-                )
-            )
-
-
-        else:
-
-
-            (
-                ffmpeg
-                .output(
-                    video,
-                    audio,
-                    output_file,
-
-                    vcodec="libx264",
-
-                    acodec="aac",
-
-                    video_bitrate="2500k",
-
-                    audio_bitrate="128k",
-
-                    ar=44100,
-
-                    ac=2,
-
-                    pix_fmt="yuv420p",
-
-                    preset="medium",
-
-                    movflags="+faststart"
-                )
-                .global_args(
-                    "-loglevel",
-                    "error"
-                )
-                .run(
-                    overwrite_output=True
-                )
-            )
-
-
-
-    except ffmpeg.Error as e:
-
-        print(
-            e.stderr.decode(
-                errors="ignore"
-            )
+        .run(
+            capture_stdout=True,
+            capture_stderr=True
         )
-
-        raise
-
-
-
-    return output_file
-
-
+    )
 
 
 def cleanup(path):
