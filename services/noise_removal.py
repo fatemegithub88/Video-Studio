@@ -245,7 +245,7 @@ def remove_noise(input_file, output_file):
         "-pix_fmt", "yuv420p",
 
         # Audio Noise Removal
-        "-af", "afftdn",
+        "-af", "afftdn=nr=20:nf=-25",
 
         "-c:a", "aac",
         "-b:a", "128k",

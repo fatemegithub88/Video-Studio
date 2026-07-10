@@ -219,13 +219,8 @@
 
 import os
 import uuid
+import subprocess
 import yt_dlp
-import ffmpeg
-
-
-# -------------------------------------------------
-# Directories
-# -------------------------------------------------
 
 OUTPUT_DIR = "static/outputs"
 TEMP_DIR = "temp"
@@ -235,189 +230,148 @@ TEMP_DIR = "temp"
 # Download Video
 # -------------------------------------------------
 
-def download_video(link):
+def download_video(url):
 
-    os.makedirs(
-        TEMP_DIR,
-        exist_ok=True
-    )
-
+    os.makedirs(TEMP_DIR, exist_ok=True)
 
     uid = uuid.uuid4().hex
 
-
-    output_template = os.path.join(
-        TEMP_DIR,
-        f"{uid}.%(ext)s"
-    )
-
+    filename = f"{TEMP_DIR}/{uid}.mp4"
 
     ydl_opts = {
-
-        "format": "bestvideo+bestaudio/best",
-
-        "outtmpl": output_template,
-
-        "merge_output_format": "mp4"
-
+        "format": "best[ext=mp4]/best",
+        "merge_output_format": "mp4",
+        "outtmpl": filename,
+        "quiet": True,
+        "noplaylist": True
     }
 
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
-        ydl.download([link])
-
+    if os.path.exists(filename):
+        return filename
 
     for file in os.listdir(TEMP_DIR):
-
         if file.startswith(uid):
+            return os.path.join(TEMP_DIR, file)
 
-            return os.path.join(
-                TEMP_DIR,
-                file
-            )
-
-
-    raise FileNotFoundError(
-        "Downloaded video not found"
-    )
-
+    raise FileNotFoundError("Video download failed.")
 
 
 # -------------------------------------------------
-# Convert Quality
+# Quality Convert
 # -------------------------------------------------
 
-def convert_quality(
-        input_file,
-        output_file,
-        quality
-):
+def convert_quality(input_file, output_file, quality):
 
-
-    quality_map = {
+    heights = {
 
         "1080p": 1080,
-
         "720p": 720,
-
         "480p": 480,
-
         "360p": 360,
-
+        "240p": 240,
         "144p": 144
 
     }
 
-
-    height = quality_map.get(
+    height = heights.get(
         quality,
         720
     )
 
+    command = [
 
-    try:
+        "ffmpeg",
 
-        (
-            ffmpeg
-            .input(input_file)
-            .output(
+        "-y",
 
-                output_file,
+        "-i", input_file,
 
-                vf=f"scale=-2:{height}",
+        "-vf", f"scale=-2:{height}",
 
-                vcodec="libx264",
+        "-c:v", "libx264",
 
-                acodec="aac",
+        "-preset", "medium",
 
-                audio_bitrate="128k",
+        "-crf", "23",
 
-                pix_fmt="yuv420p",
+        "-pix_fmt", "yuv420p",
 
-                preset="medium",
+        "-c:a", "aac",
 
-                movflags="faststart"
+        "-b:a", "128k",
 
-            )
-            .run(
+        "-movflags", "+faststart",
 
-                overwrite_output=True,
+        output_file
 
-                capture_stdout=True,
+    ]
 
-                capture_stderr=True
+    result = subprocess.run(
 
-            )
-        )
+        command,
 
+        stdout=subprocess.PIPE,
 
-    except ffmpeg.Error as e:
+        stderr=subprocess.PIPE,
 
-        print(
-            "FFMPEG ERROR:"
-        )
+        text=True
 
-        print(
-            e.stderr.decode()
-        )
+    )
 
-        raise
+    if result.returncode != 0:
+        raise Exception(result.stderr)
 
+    if not os.path.exists(output_file):
+        raise Exception("Quality conversion failed.")
 
 
 # -------------------------------------------------
 # Cleanup
 # -------------------------------------------------
 
-def cleanup(file_path):
+def cleanup(path):
 
-    if os.path.exists(file_path):
+    try:
 
-        os.remove(file_path)
+        if path and os.path.exists(path):
+            os.remove(path)
 
+    except:
+        pass
 
 
 # -------------------------------------------------
-# Main Pipeline
+# Main
 # -------------------------------------------------
 
-def create_quality_video(
-        url: str,
-        quality: str
-):
-
+def create_quality_video(url, quality):
 
     os.makedirs(
         OUTPUT_DIR,
         exist_ok=True
     )
 
+    source = None
 
-    video_file = download_video(url)
+    try:
 
+        source = download_video(url)
 
-    uid = uuid.uuid4().hex
+        uid = uuid.uuid4().hex
 
+        output = f"{OUTPUT_DIR}/{uid}.mp4"
 
-    output_file = os.path.join(
-        OUTPUT_DIR,
-        f"{uid}.mp4"
-    )
+        convert_quality(
+            source,
+            output,
+            quality
+        )
 
+        return output
 
-    convert_quality(
+    finally:
 
-        video_file,
-
-        output_file,
-
-        quality
-
-    )
-
-
-    cleanup(video_file)
-
-
-    return output_file
+        cleanup(source)
