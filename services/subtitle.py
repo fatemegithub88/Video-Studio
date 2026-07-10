@@ -480,7 +480,10 @@ TEMP_DIR = "temp"
 # Load Whisper Once
 # -------------------------------------------------
 
-model = whisper.load_model("tiny")
+model = whisper.load_model(
+    "tiny",
+    device="cpu"
+)
 
 
 # -------------------------------------------------
@@ -501,7 +504,8 @@ def download_video(url):
 
     options = {
 
-        "format": "best[ext=mp4]/best",
+        "format":
+        "bestvideo[height<=720]+bestaudio/best[height<=720]",
 
         "outtmpl": filename,
 
@@ -543,7 +547,6 @@ def download_video(url):
 
 def extract_audio(video_file, audio_file):
 
-
     command = [
 
         "ffmpeg",
@@ -553,51 +556,34 @@ def extract_audio(video_file, audio_file):
         "-i",
         video_file,
 
-
         "-vn",
-
-
-        "-acodec",
-        "pcm_s16le",
-
-
-        "-ar",
-        "16000",
-
 
         "-ac",
         "1",
 
+        "-ar",
+        "16000",
+
+        "-codec:a",
+        "libmp3lame",
+
+        "-b:a",
+        "32k",
 
         audio_file
     ]
 
 
     result = subprocess.run(
-
         command,
-
-        stdout=subprocess.PIPE,
-
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
-
         text=True
     )
 
 
     if result.returncode != 0:
-
-        raise Exception(
-            result.stderr
-        )
-
-
-    if not os.path.exists(audio_file):
-
-        raise Exception(
-            "Audio extraction failed"
-        )
-
+        raise Exception(result.stderr)
 
 
 # -------------------------------------------------
@@ -607,12 +593,23 @@ def extract_audio(video_file, audio_file):
 def speech_to_text(audio_file):
 
     result = model.transcribe(
+
         audio_file,
-        fp16=False
+
+        fp16=False,
+
+        language="en",
+
+        condition_on_previous_text=False,
+
+        temperature=0,
+
+        beam_size=1
+
     )
 
-    return result
 
+    return result
 
 
 # -------------------------------------------------
@@ -747,7 +744,7 @@ def burn_subtitle(
 
 
         "-preset",
-        "medium",
+        "veryfast",
 
 
         "-crf",
