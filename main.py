@@ -25,7 +25,7 @@ def clean_outputs():
 
     while True:
 
-        time.sleep(30)  
+        time.sleep(120)  
         if not os.path.exists(OUTPUT_DIR):
             continue
 
@@ -42,7 +42,7 @@ def clean_outputs():
             if not os.path.isfile(filepath):
                 continue
 
-            if now - os.path.getmtime(filepath) > 30:
+            if now - os.path.getmtime(filepath) > 120:
                 try:
                     os.remove(filepath)
                     print(f"Deleted: {filepath}")
