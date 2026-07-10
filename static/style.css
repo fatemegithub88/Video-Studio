@@ -1974,7 +1974,7 @@ select{
     cursor:pointer;
 }
 
-/* گزینه‌های داخل دراپ‌داون */
+
 
 select option{
 
@@ -1983,7 +1983,6 @@ select option{
 
 }
 
-/* هنگام انتخاب */
 
 select option:checked{
 
@@ -1992,7 +1991,7 @@ select option:checked{
 
 }
 
-/* هنگام هاور (در بعضی مرورگرها کار می‌کند) */
+
 
 select option:hover{
 
