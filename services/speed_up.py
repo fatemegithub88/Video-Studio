@@ -90,15 +90,197 @@
 #     return "static/outputs/output.mp4"
 
 
+# import os
+# import uuid
+# import yt_dlp
+# import ffmpeg
+
+
+# # -------------------------------------------------
+# # Directories
+# # -------------------------------------------------
+
+# OUTPUT_DIR = "static/outputs"
+# TEMP_DIR = "temp"
+
+
+# # -------------------------------------------------
+# # Download Video
+# # -------------------------------------------------
+
+# def download_video(link):
+
+#     os.makedirs(
+#         TEMP_DIR,
+#         exist_ok=True
+#     )
+
+
+#     uid = uuid.uuid4().hex
+
+#     temp_file = f"{TEMP_DIR}/{uid}.%(ext)s"
+
+
+#     ydl_opts = {
+
+#         "format": "best",
+
+#         "outtmpl": temp_file
+#     }
+
+
+#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+#         ydl.download([link])
+
+
+#     for file in os.listdir(TEMP_DIR):
+
+#         if file.startswith(uid):
+
+#             return os.path.join(
+#                 TEMP_DIR,
+#                 file
+#             )
+
+
+#     raise FileNotFoundError(
+#         "Downloaded video not found."
+#     )
+
+
+# # -------------------------------------------------
+# # Build Audio Speed Filter
+# # -------------------------------------------------
+
+# def build_atempo(speed: float) -> str:
+#     """
+#     FFmpeg atempo only supports values between 0.5 and 2.0.
+#     This function creates a valid filter chain.
+#     """
+
+
+#     filters = []
+
+
+#     while speed > 2:
+
+#         filters.append(
+#             "atempo=2"
+#         )
+
+#         speed /= 2
+
+
+#     while speed < 0.5:
+
+#         filters.append(
+#             "atempo=0.5"
+#         )
+
+#         speed *= 2
+
+
+#     filters.append(
+#         f"atempo={speed:.3f}"
+#     )
+
+
+#     return ",".join(filters)
+
+
+
+# # -------------------------------------------------
+# # Change Speed
+# # -------------------------------------------------
+
+# def change_speed(
+#     input_file,
+#     output_file,
+#     speed: float
+# ):
+
+
+#     video_filter = (
+#         f"setpts={1/speed}*PTS"
+#     )
+
+
+#     audio_filter = build_atempo(
+#         speed
+#     )
+
+
+#     (
+#         ffmpeg
+#         .input(input_file)
+#         .output(
+#             output_file,
+#             vf=video_filter,
+#             af=audio_filter
+#         )
+#         .run(
+#             overwrite_output=True
+#         )
+#     )
+
+
+# # -------------------------------------------------
+# # Cleanup
+# # -------------------------------------------------
+
+# def cleanup(file_path):
+
+#     if os.path.exists(file_path):
+
+#         os.remove(file_path)
+
+
+
+# # -------------------------------------------------
+# # Main Pipeline
+# # -------------------------------------------------
+
+# def create_speed_video(
+#     url: str,
+#     speed: float
+# ):
+
+
+#     os.makedirs(
+#         OUTPUT_DIR,
+#         exist_ok=True
+#     )
+
+
+#     video_file = download_video(url)
+
+
+#     uid = uuid.uuid4().hex
+
+
+#     output_file = (
+#         f"{OUTPUT_DIR}/{uid}.mp4"
+#     )
+
+
+#     change_speed(
+#         video_file,
+#         output_file,
+#         speed
+#     )
+
+
+#     cleanup(video_file)
+
+
+#     return output_file
+
+
 import os
 import uuid
 import yt_dlp
 import ffmpeg
 
-
-# -------------------------------------------------
-# Directories
-# -------------------------------------------------
 
 OUTPUT_DIR = "static/outputs"
 TEMP_DIR = "temp"
@@ -115,21 +297,27 @@ def download_video(link):
         exist_ok=True
     )
 
-
     uid = uuid.uuid4().hex
 
-    temp_file = f"{TEMP_DIR}/{uid}.%(ext)s"
-
+    output_template = (
+        f"{TEMP_DIR}/{uid}.%(ext)s"
+    )
 
     ydl_opts = {
 
-        "format": "best",
+        # گرفتن ویدیوی سازگار
+        "format": "bestvideo+bestaudio/best",
 
-        "outtmpl": temp_file
+        "merge_output_format": "mp4",
+
+        "outtmpl": output_template,
+
+        "quiet": True
     }
 
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
         ydl.download([link])
 
 
@@ -144,23 +332,18 @@ def download_video(link):
 
 
     raise FileNotFoundError(
-        "Downloaded video not found."
+        "Video not downloaded"
     )
 
 
+
 # -------------------------------------------------
-# Build Audio Speed Filter
+# Build Atempo
 # -------------------------------------------------
 
-def build_atempo(speed: float) -> str:
-    """
-    FFmpeg atempo only supports values between 0.5 and 2.0.
-    This function creates a valid filter chain.
-    """
-
+def build_atempo(speed):
 
     filters = []
-
 
     while speed > 2:
 
@@ -181,7 +364,7 @@ def build_atempo(speed: float) -> str:
 
 
     filters.append(
-        f"atempo={speed:.3f}"
+        f"atempo={speed}"
     )
 
 
@@ -196,16 +379,16 @@ def build_atempo(speed: float) -> str:
 def change_speed(
     input_file,
     output_file,
-    speed: float
+    speed
 ):
 
 
-    video_filter = (
+    video_speed = (
         f"setpts={1/speed}*PTS"
     )
 
 
-    audio_filter = build_atempo(
+    audio_speed = build_atempo(
         speed
     )
 
@@ -213,15 +396,41 @@ def change_speed(
     (
         ffmpeg
         .input(input_file)
+
         .output(
+
             output_file,
-            vf=video_filter,
-            af=audio_filter
+
+            # video
+            vf=video_speed,
+
+            vcodec="libx264",
+
+            preset="veryfast",
+
+            crf=23,
+
+            pix_fmt="yuv420p",
+
+
+            # audio
+            af=audio_speed,
+
+            acodec="aac",
+
+            audio_bitrate="128k",
+
+            movflags="faststart"
         )
+
+        .overwrite_output()
+
         .run(
-            overwrite_output=True
+            capture_stdout=True,
+            capture_stderr=True
         )
     )
+
 
 
 # -------------------------------------------------
@@ -230,14 +439,20 @@ def change_speed(
 
 def cleanup(file_path):
 
-    if os.path.exists(file_path):
+    try:
 
-        os.remove(file_path)
+        if os.path.exists(file_path):
+
+            os.remove(file_path)
+
+    except:
+
+        pass
 
 
 
 # -------------------------------------------------
-# Main Pipeline
+# Main
 # -------------------------------------------------
 
 def create_speed_video(
@@ -252,7 +467,9 @@ def create_speed_video(
     )
 
 
-    video_file = download_video(url)
+    video_file = download_video(
+        url
+    )
 
 
     uid = uuid.uuid4().hex
@@ -263,14 +480,20 @@ def create_speed_video(
     )
 
 
-    change_speed(
-        video_file,
-        output_file,
-        speed
-    )
+    try:
+
+        change_speed(
+            video_file,
+            output_file,
+            speed
+        )
 
 
-    cleanup(video_file)
+    finally:
+
+        cleanup(
+            video_file
+        )
 
 
     return output_file
