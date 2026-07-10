@@ -235,14 +235,18 @@
 
 import os
 import uuid
+import subprocess
 import yt_dlp
-import ffmpeg
 
 
 OUTPUT_DIR = "static/outputs"
 TEMP_DIR = "temp"
 
 
+
+# -------------------------------------------------
+# Download Video
+# -------------------------------------------------
 
 def download_video(url):
 
@@ -251,18 +255,23 @@ def download_video(url):
         exist_ok=True
     )
 
+
     uid = uuid.uuid4().hex
 
-    filename = f"{TEMP_DIR}/{uid}.mp4"
+
+    output_template = os.path.join(
+        TEMP_DIR,
+        f"{uid}.%(ext)s"
+    )
 
 
     options = {
 
         "format":
-        "best[ext=mp4]/best",
+        "bestvideo[height<=720]+bestaudio/best",
 
         "outtmpl":
-        filename,
+        output_template,
 
         "merge_output_format":
         "mp4",
@@ -275,28 +284,33 @@ def download_video(url):
     }
 
 
+
     with yt_dlp.YoutubeDL(options) as ydl:
+
         ydl.download([url])
 
 
-    if os.path.exists(filename):
-        return filename
 
+    for file in os.listdir(TEMP_DIR):
 
-    for f in os.listdir(TEMP_DIR):
+        if file.startswith(uid):
 
-        if f.startswith(uid):
             return os.path.join(
                 TEMP_DIR,
-                f
+                file
             )
 
 
-    raise Exception(
+    raise FileNotFoundError(
         "Download failed"
     )
 
 
+
+
+# -------------------------------------------------
+# Convert Format
+# -------------------------------------------------
 
 def convert_format(
     input_file,
@@ -304,67 +318,126 @@ def convert_format(
     output_format
 ):
 
-    codecs = {
 
-        "mp4": {
-            "vcodec": "libx264",
-            "acodec": "aac"
-        },
+    output_format = output_format.lower()
 
-        "mkv": {
-            "vcodec": "libx264",
-            "acodec": "aac"
-        },
 
-        "mov": {
-            "vcodec": "libx264",
-            "acodec": "aac"
-        },
 
-        "webm": {
-            "vcodec": "libvpx-vp9",
-            "acodec": "libopus"
-        }
+    supported = [
 
-    }
+        "mp4",
+        "mkv",
+        "mov",
+        "webm"
 
-    codec = codecs.get(
-        output_format,
-        codecs["mp4"]
+    ]
+
+
+    if output_format not in supported:
+
+        output_format = "mp4"
+
+
+
+    if output_format == "webm":
+
+        video_codec = "libvpx-vp9"
+        audio_codec = "libopus"
+
+
+    else:
+
+        video_codec = "libx264"
+        audio_codec = "aac"
+
+
+
+    command = [
+
+        "ffmpeg",
+
+        "-y",
+
+        "-i",
+        input_file,
+
+
+        "-c:v",
+        video_codec,
+
+
+        "-c:a",
+        audio_codec,
+
+
+        "-preset",
+        "veryfast",
+
+
+        "-crf",
+        "23",
+
+
+        "-pix_fmt",
+        "yuv420p",
+
+
+        "-b:a",
+        "128k",
+
+
+        "-movflags",
+        "+faststart",
+
+
+        output_file
+
+    ]
+
+
+
+    result = subprocess.run(
+
+        command,
+
+        stdout=subprocess.DEVNULL,
+
+        stderr=subprocess.PIPE,
+
+        text=True
+
     )
 
-    (
-        ffmpeg
-        .input(input_file)
 
-        .output(
 
-            output_file,
+    if result.returncode != 0:
 
-            vcodec=codec["vcodec"],
+        raise Exception(
 
-            acodec=codec["acodec"],
-
-            preset="veryfast",
-
-            crf=23,
-
-            pix_fmt="yuv420p",
-
-            audio_bitrate="128k",
-
-            movflags="faststart"
+            "FFmpeg conversion failed:\n"
+            + result.stderr[-3000:]
 
         )
 
-        .overwrite_output()
 
-        .run(
-            capture_stdout=True,
-            capture_stderr=True
+
+    if not os.path.exists(output_file):
+
+        raise Exception(
+            "Output file was not created"
         )
-    )
 
+
+
+    return output_file
+
+
+
+
+
+# -------------------------------------------------
+# Cleanup
+# -------------------------------------------------
 
 def cleanup(path):
 
@@ -381,9 +454,14 @@ def cleanup(path):
 
 
 
+
+# -------------------------------------------------
+# Main Pipeline
+# -------------------------------------------------
+
 def create_converted_video(
-    url:str,
-    output_format:str
+    url: str,
+    output_format: str
 ):
 
 
@@ -396,6 +474,21 @@ def create_converted_video(
     source = None
 
 
+
+    uid = uuid.uuid4().hex
+
+
+
+    output_file = os.path.join(
+
+        OUTPUT_DIR,
+
+        f"{uid}.{output_format}"
+
+    )
+
+
+
     try:
 
 
@@ -404,22 +497,20 @@ def create_converted_video(
         )
 
 
-        uid = uuid.uuid4().hex
-
-
-        output = (
-            f"{OUTPUT_DIR}/{uid}.{output_format}"
-        )
-
-
         convert_format(
+
             source,
-            output,
+
+            output_file,
+
             output_format
+
         )
 
 
-        return output
+
+        return output_file
+
 
 
     finally:

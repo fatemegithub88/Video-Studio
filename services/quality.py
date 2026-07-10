@@ -239,7 +239,7 @@ def download_video(url):
     filename = f"{TEMP_DIR}/{uid}.mp4"
 
     ydl_opts = {
-        "format": "best[ext=mp4]/best",
+        "format": "bestvideo[height<=1080]+bestaudio/best",
         "merge_output_format": "mp4",
         "outtmpl": filename,
         "quiet": True,
@@ -283,30 +283,44 @@ def convert_quality(input_file, output_file, quality):
 
     command = [
 
-        "ffmpeg",
+    "ffmpeg",
 
-        "-y",
+    "-y",
 
-        "-i", input_file,
+    "-i",
+    input_file,
 
-        "-vf", f"scale=-2:{height}",
 
-        "-c:v", "libx264",
+    "-vf",
+    f"scale=-2:{height}",
 
-        "-preset", "medium",
 
-        "-crf", "23",
+    "-c:v",
+    "libx264",
 
-        "-pix_fmt", "yuv420p",
+    "-preset",
+    "veryfast",
 
-        "-c:a", "aac",
+    "-crf",
+    "24",
 
-        "-b:a", "128k",
 
-        "-movflags", "+faststart",
+    "-c:a",
+    "aac",
 
-        output_file
+    "-b:a",
+    "128k",
 
+
+    "-pix_fmt",
+    "yuv420p",
+
+
+    "-movflags",
+    "+faststart",
+
+
+    output_file
     ]
 
     result = subprocess.run(
