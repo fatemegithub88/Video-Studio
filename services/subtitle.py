@@ -467,18 +467,30 @@
 import os
 import uuid
 import subprocess
+import gc
+
 import yt_dlp
 import whisper
+
 from deep_translator import GoogleTranslator
+
 
 
 OUTPUT_DIR = "static/outputs"
 TEMP_DIR = "temp"
 
 
-# -------------------------------------------------
-# Load Whisper Once
-# -------------------------------------------------
+
+os.makedirs(
+    TEMP_DIR,
+    exist_ok=True
+)
+
+
+
+# -----------------------------
+# Whisper Load
+# -----------------------------
 
 model = whisper.load_model(
     "tiny",
@@ -486,66 +498,85 @@ model = whisper.load_model(
 )
 
 
-# -------------------------------------------------
+
+# -----------------------------
 # Download Video
-# -------------------------------------------------
+# -----------------------------
 
 def download_video(url):
 
-    os.makedirs(
-        TEMP_DIR,
-        exist_ok=True
-    )
 
     uid = uuid.uuid4().hex
 
-    filename = f"{TEMP_DIR}/{uid}.mp4"
+
+    filename = os.path.join(
+        TEMP_DIR,
+        f"{uid}.mp4"
+    )
 
 
     options = {
 
         "format":
-        "bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "bestvideo[height<=720]+bestaudio/best",
 
-        "outtmpl": filename,
+        "outtmpl":
+        filename,
 
-        "merge_output_format": "mp4",
+        "merge_output_format":
+        "mp4",
 
-        "noplaylist": True,
+        "noplaylist":
+        True,
 
-        "quiet": True
+        "quiet":
+        True,
+
+        "no_warnings":
+        True
     }
 
 
+
     with yt_dlp.YoutubeDL(options) as ydl:
+
         ydl.download([url])
 
 
+
     if os.path.exists(filename):
+
         return filename
 
 
-    for file in os.listdir(TEMP_DIR):
 
-        if file.startswith(uid):
+    for f in os.listdir(TEMP_DIR):
+
+        if f.startswith(uid):
 
             return os.path.join(
                 TEMP_DIR,
-                file
+                f
             )
 
 
-    raise FileNotFoundError(
-        "Video download failed"
+
+    raise Exception(
+        "Download failed"
     )
 
 
 
-# -------------------------------------------------
-# Extract Audio From Video
-# -------------------------------------------------
 
-def extract_audio(video_file, audio_file):
+# -----------------------------
+# Extract Audio
+# -----------------------------
+
+def extract_audio(
+    video,
+    audio
+):
+
 
     command = [
 
@@ -554,7 +585,7 @@ def extract_audio(video_file, audio_file):
         "-y",
 
         "-i",
-        video_file,
+        video,
 
         "-vn",
 
@@ -570,217 +601,23 @@ def extract_audio(video_file, audio_file):
         "-b:a",
         "32k",
 
-        audio_file
+        audio
     ]
 
 
+
     result = subprocess.run(
+
         command,
+
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True
-    )
-
-
-    if result.returncode != 0:
-        raise Exception(result.stderr)
-
-
-# -------------------------------------------------
-# Whisper
-# -------------------------------------------------
-
-def speech_to_text(audio_file):
-
-    result = model.transcribe(
-
-        audio_file,
-
-        fp16=False,
-
-        language="en",
-
-        condition_on_previous_text=False,
-
-        temperature=0,
-
-        beam_size=1
-
-    )
-
-
-    return result
-
-
-# -------------------------------------------------
-# Timestamp
-# -------------------------------------------------
-
-def format_timestamp(seconds):
-
-    hours = int(seconds // 3600)
-
-    minutes = int(
-        (seconds % 3600) // 60
-    )
-
-    secs = int(seconds % 60)
-
-    millis = int(
-        (seconds % 1) * 1000
-    )
-
-
-    return (
-        f"{hours:02d}:"
-        f"{minutes:02d}:"
-        f"{secs:02d},"
-        f"{millis:03d}"
-    )
-
-
-
-# -------------------------------------------------
-# Create SRT
-# -------------------------------------------------
-
-def create_subtitle(result, subtitle_file):
-
-
-    translator = GoogleTranslator(
-        source="en",
-        target="fa"
-    )
-
-
-    with open(
-        subtitle_file,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-
-        for index, segment in enumerate(
-            result["segments"],
-            start=1
-        ):
-
-
-            text = (
-                segment["text"]
-                .strip()
-            )
-
-
-            if not text:
-                continue
-
-
-            try:
-
-                translated = translator.translate(
-                    text
-                )
-
-            except:
-
-                translated = text
-
-
-
-            start = format_timestamp(
-                segment["start"]
-            )
-
-
-            end = format_timestamp(
-                segment["end"]
-            )
-
-
-            f.write(
-                f"{index}\n"
-            )
-
-
-            f.write(
-                f"{start} --> {end}\n"
-            )
-
-
-            f.write(
-                f"{translated}\n\n"
-            )
-
-
-
-# -------------------------------------------------
-# Burn Subtitle
-# -------------------------------------------------
-
-def burn_subtitle(
-    video_file,
-    subtitle_file,
-    output_file
-):
-
-
-    command = [
-
-        "ffmpeg",
-
-        "-y",
-
-        "-i",
-        video_file,
-
-
-        "-vf",
-        f"subtitles={subtitle_file}",
-
-
-        "-c:v",
-        "libx264",
-
-
-        "-preset",
-        "veryfast",
-
-
-        "-crf",
-        "23",
-
-
-        "-pix_fmt",
-        "yuv420p",
-
-
-        "-c:a",
-        "aac",
-
-
-        "-b:a",
-        "128k",
-
-
-        "-movflags",
-        "+faststart",
-
-
-        output_file
-    ]
-
-
-    result = subprocess.run(
-
-        command,
-
-        stdout=subprocess.PIPE,
 
         stderr=subprocess.PIPE,
 
         text=True
+
     )
+
 
 
     if result.returncode != 0:
@@ -790,27 +627,277 @@ def burn_subtitle(
         )
 
 
-    if not os.path.exists(output_file):
 
-        raise Exception(
-            "Subtitle burn failed"
+
+# -----------------------------
+# Whisper
+# -----------------------------
+
+def speech_to_text(audio):
+
+
+    with open(audio,"rb"):
+
+        result = model.transcribe(
+
+            audio,
+
+            fp16=False,
+
+            language="en",
+
+            temperature=0,
+
+            beam_size=1,
+
+            best_of=1,
+
+            condition_on_previous_text=False,
+
+            verbose=False
+
         )
 
 
 
-# -------------------------------------------------
+    gc.collect()
+
+
+    return result
+
+
+
+
+
+# -----------------------------
+# Timestamp
+# -----------------------------
+
+def format_timestamp(seconds):
+
+
+    h = int(seconds // 3600)
+
+    m = int(
+        (seconds % 3600)//60
+    )
+
+    s = int(seconds % 60)
+
+    ms = int(
+        (seconds % 1)*1000
+    )
+
+
+    return (
+        f"{h:02}:{m:02}:{s:02},{ms:03}"
+    )
+
+
+
+
+# -----------------------------
+# Create Subtitle
+# -----------------------------
+
+def create_subtitle(
+    result,
+    file
+):
+
+
+    translator = GoogleTranslator(
+
+        source="en",
+
+        target="fa"
+
+    )
+
+
+
+    with open(
+
+        file,
+
+        "w",
+
+        encoding="utf-8"
+
+    ) as f:
+
+
+
+        index = 1
+
+
+
+        for segment in result["segments"]:
+
+
+            text = segment["text"].strip()
+
+
+
+            if not text:
+
+                continue
+
+
+
+            try:
+
+                translated = translator.translate(
+                    text
+                )
+
+
+            except Exception:
+
+                translated = text
+
+
+
+
+            f.write(
+
+                f"{index}\n"
+
+            )
+
+
+            f.write(
+
+                f"{format_timestamp(segment['start'])} --> {format_timestamp(segment['end'])}\n"
+
+            )
+
+
+            f.write(
+
+                translated+"\n\n"
+
+            )
+
+
+            index += 1
+
+
+
+# -----------------------------
+# Burn Subtitle
+# -----------------------------
+
+def burn_subtitle(
+
+    video,
+
+    subtitle,
+
+    output
+
+):
+
+
+    command = [
+
+        "ffmpeg",
+
+        "-y",
+
+        "-threads",
+        "2",
+
+        "-i",
+
+        video,
+
+
+        "-vf",
+
+        f"subtitles={subtitle}",
+
+
+        "-c:v",
+
+        "libx264",
+
+
+        "-preset",
+
+        "veryfast",
+
+
+        "-crf",
+
+        "26",
+
+
+        "-pix_fmt",
+
+        "yuv420p",
+
+
+        "-c:a",
+
+        "aac",
+
+
+        "-b:a",
+
+        "96k",
+
+
+        "-movflags",
+
+        "+faststart",
+
+
+        output
+
+    ]
+
+
+
+    result = subprocess.run(
+
+        command,
+
+        stdout=subprocess.DEVNULL,
+
+        stderr=subprocess.PIPE,
+
+        text=True
+
+    )
+
+
+
+    if result.returncode != 0:
+
+        raise Exception(
+            result.stderr
+        )
+
+
+
+
+
+# -----------------------------
 # Cleanup
-# -------------------------------------------------
+# -----------------------------
 
 def cleanup(files):
 
-    for file in files:
+
+    for f in files:
 
         try:
 
-            if file and os.path.exists(file):
+            if f and os.path.exists(f):
 
-                os.remove(file)
+                os.remove(f)
+
 
         except:
 
@@ -818,27 +905,25 @@ def cleanup(files):
 
 
 
-# -------------------------------------------------
+
+# -----------------------------
 # Main
-# -------------------------------------------------
+# -----------------------------
 
 def create_subtitled_video(url):
-
-
-    os.makedirs(
-        OUTPUT_DIR,
-        exist_ok=True
-    )
 
 
     uid = uuid.uuid4().hex
 
 
+
     video_file = None
 
+
     audio_file = (
-        f"{TEMP_DIR}/{uid}.wav"
+        f"{TEMP_DIR}/{uid}.mp3"
     )
+
 
     subtitle_file = (
         f"{TEMP_DIR}/{uid}.srt"
@@ -846,11 +931,21 @@ def create_subtitled_video(url):
 
 
     output_file = (
+
         f"{OUTPUT_DIR}/{uid}.mp4"
+
     )
 
 
+
     try:
+
+
+        os.makedirs(
+            OUTPUT_DIR,
+            exist_ok=True
+        )
+
 
 
         video_file = download_video(
@@ -858,28 +953,50 @@ def create_subtitled_video(url):
         )
 
 
+
         extract_audio(
+
             video_file,
+
             audio_file
+
         )
+
 
 
         result = speech_to_text(
+
             audio_file
+
         )
+
 
 
         create_subtitle(
+
             result,
+
             subtitle_file
+
         )
+
+
+        del result
+
+        gc.collect()
+
 
 
         burn_subtitle(
+
             video_file,
+
             subtitle_file,
+
             output_file
+
         )
+
 
 
         return output_file
@@ -892,9 +1009,13 @@ def create_subtitled_video(url):
         cleanup(
 
             [
+
                 video_file,
+
                 audio_file,
+
                 subtitle_file
+
             ]
 
         )

@@ -145,13 +145,9 @@
 
 import os
 import uuid
+import subprocess
 import yt_dlp
-import ffmpeg
 
-
-# -------------------------------------------------
-# Directories
-# -------------------------------------------------
 
 OUTPUT_DIR = "static/outputs"
 TEMP_DIR = "temp"
@@ -163,7 +159,10 @@ TEMP_DIR = "temp"
 
 def download_video(link):
 
-    os.makedirs(TEMP_DIR, exist_ok=True)
+    os.makedirs(
+        TEMP_DIR,
+        exist_ok=True
+    )
 
     uid = uuid.uuid4().hex
 
@@ -174,13 +173,26 @@ def download_video(link):
 
 
     ydl_opts = {
-        "format": "bestvideo+bestaudio/best",
-        "outtmpl": output_template,
-        "merge_output_format": "mp4"
+
+        "format":
+        "bestvideo[height<=720]+bestaudio/best",
+
+        "outtmpl":
+        output_template,
+
+        "merge_output_format":
+        "mp4",
+
+        "noplaylist":
+        True,
+
+        "quiet":
+        True
     }
 
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
         ydl.download([link])
 
 
@@ -199,53 +211,83 @@ def download_video(link):
     )
 
 
+
 # -------------------------------------------------
 # Boost Audio Volume
 # -------------------------------------------------
 
-def boost_audio(input_file, output_file, volume=1.5):
+def boost_audio(
+    input_file,
+    output_file,
+    volume=1.5
+):
 
 
-    try:
+    command = [
 
-        (
-            ffmpeg
-            .input(input_file)
-            .output(
-                output_file,
+        "ffmpeg",
 
-                # audio filter
-                af=f"volume={volume}",
+        "-y",
 
-                # keep video
-                vcodec="copy",
+        "-i",
+        input_file,
 
-                # re-encode audio
-                acodec="aac",
 
-                audio_bitrate="192k",
+        # audio filter
+        "-af",
+        f"volume={volume}",
 
-                movflags="faststart"
-            )
-            .run(
-                overwrite_output=True,
-                capture_stdout=True,
-                capture_stderr=True
-            )
+
+        # video copy
+        "-c:v",
+        "copy",
+
+
+        # audio encode
+        "-c:a",
+        "aac",
+
+        "-b:a",
+        "192k",
+
+
+        "-movflags",
+        "+faststart",
+
+
+        output_file
+    ]
+
+
+
+    result = subprocess.run(
+
+        command,
+
+        stdout=subprocess.DEVNULL,
+
+        stderr=subprocess.PIPE,
+
+        text=True
+
+    )
+
+
+
+    if result.returncode != 0:
+
+        raise Exception(
+            f"FFmpeg Error:\n{result.stderr}"
         )
 
 
-    except ffmpeg.Error as e:
 
-        print(
-            "FFMPEG ERROR:"
+    if not os.path.exists(output_file):
+
+        raise Exception(
+            "Output video was not created"
         )
 
-        print(
-            e.stderr.decode()
-        )
-
-        raise
 
 
 # -------------------------------------------------
@@ -254,9 +296,15 @@ def boost_audio(input_file, output_file, volume=1.5):
 
 def cleanup(file_path):
 
-    if os.path.exists(file_path):
+    try:
 
-        os.remove(file_path)
+        if file_path and os.path.exists(file_path):
+
+            os.remove(file_path)
+
+    except:
+
+        pass
 
 
 
@@ -265,8 +313,8 @@ def cleanup(file_path):
 # -------------------------------------------------
 
 def create_boosted_video(
-        url: str,
-        volume: float = 1.5
+    url: str,
+    volume: float = 1.5
 ):
 
 
@@ -276,7 +324,7 @@ def create_boosted_video(
     )
 
 
-    video_file = download_video(url)
+    video_file = None
 
 
     uid = uuid.uuid4().hex
@@ -288,14 +336,33 @@ def create_boosted_video(
     )
 
 
-    boost_audio(
-        video_file,
-        output_file,
-        volume
-    )
+
+    try:
 
 
-    cleanup(video_file)
+        video_file = download_video(
+            url
+        )
 
 
-    return output_file
+        boost_audio(
+
+            video_file,
+
+            output_file,
+
+            volume
+
+        )
+
+
+        return output_file
+
+
+
+    finally:
+
+
+        cleanup(
+            video_file
+        )
