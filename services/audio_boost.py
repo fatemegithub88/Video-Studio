@@ -64,10 +64,98 @@
 #     return "static/outputs/output.mp4"
 
 
+# import os
+# import uuid
+# import yt_dlp
+# import ffmpeg
+
+# # -------------------------------------------------
+# # Download Video
+# # -------------------------------------------------
+
+# def download_video(link):
+
+#     uid = uuid.uuid4().hex
+
+#     video_file = f"temp/{uid}.%(ext)s"
+
+#     ydl_opts = {
+#         "format": "best",
+#         "outtmpl": video_file
+#     }
+
+#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+#         ydl.download([link])
+
+#     base = video_file.replace(".%(ext)s", "")
+
+#     for file in os.listdir("temp"):
+#         if file.startswith(uid):
+#             return os.path.join("temp", file), uid
+
+#     raise FileNotFoundError("Downloaded video not found.")
+
+
+# # -------------------------------------------------
+# # Boost Audio Volume
+# # -------------------------------------------------
+
+# def boost_audio(input_file, output_file, volume=1.5):
+
+#     (
+#         ffmpeg
+#         .input(input_file)
+#         .output(
+#             output_file,
+#             af=f"volume={volume}"
+#         )
+#         .run(overwrite_output=True)
+#     )
+
+
+# # -------------------------------------------------
+# # Cleanup
+# # -------------------------------------------------
+
+# def cleanup(file_path):
+
+#     if os.path.exists(file_path):
+#         os.remove(file_path)
+
+
+# # -------------------------------------------------
+# # Main Pipeline
+# # -------------------------------------------------
+
+# def create_boosted_video(url: str, volume: float = 1.5):
+
+#     video_file, uid = download_video(url)
+
+#     output_file = f"static/outputs/{uid}.mp4"
+
+#     boost_audio(
+#         video_file,
+#         output_file,
+#         volume
+#     )
+
+#     cleanup(video_file)
+
+#     return output_file
+
 import os
 import uuid
 import yt_dlp
 import ffmpeg
+
+
+# -------------------------------------------------
+# Directories
+# -------------------------------------------------
+
+OUTPUT_DIR = "static/outputs"
+TEMP_DIR = "temp"
+
 
 # -------------------------------------------------
 # Download Video
@@ -75,25 +163,40 @@ import ffmpeg
 
 def download_video(link):
 
+    os.makedirs(TEMP_DIR, exist_ok=True)
+
     uid = uuid.uuid4().hex
 
-    video_file = f"temp/{uid}.%(ext)s"
+    output_template = os.path.join(
+        TEMP_DIR,
+        f"{uid}.%(ext)s"
+    )
+
 
     ydl_opts = {
-        "format": "best",
-        "outtmpl": video_file
+        "format": "bestvideo+bestaudio/best",
+        "outtmpl": output_template,
+        "merge_output_format": "mp4"
     }
+
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([link])
 
-    base = video_file.replace(".%(ext)s", "")
 
-    for file in os.listdir("temp"):
+    for file in os.listdir(TEMP_DIR):
+
         if file.startswith(uid):
-            return os.path.join("temp", file), uid
 
-    raise FileNotFoundError("Downloaded video not found.")
+            return os.path.join(
+                TEMP_DIR,
+                file
+            )
+
+
+    raise FileNotFoundError(
+        "Downloaded video not found"
+    )
 
 
 # -------------------------------------------------
@@ -102,15 +205,47 @@ def download_video(link):
 
 def boost_audio(input_file, output_file, volume=1.5):
 
-    (
-        ffmpeg
-        .input(input_file)
-        .output(
-            output_file,
-            af=f"volume={volume}"
+
+    try:
+
+        (
+            ffmpeg
+            .input(input_file)
+            .output(
+                output_file,
+
+                # audio filter
+                af=f"volume={volume}",
+
+                # keep video
+                vcodec="copy",
+
+                # re-encode audio
+                acodec="aac",
+
+                audio_bitrate="192k",
+
+                movflags="faststart"
+            )
+            .run(
+                overwrite_output=True,
+                capture_stdout=True,
+                capture_stderr=True
+            )
         )
-        .run(overwrite_output=True)
-    )
+
+
+    except ffmpeg.Error as e:
+
+        print(
+            "FFMPEG ERROR:"
+        )
+
+        print(
+            e.stderr.decode()
+        )
+
+        raise
 
 
 # -------------------------------------------------
@@ -120,18 +255,38 @@ def boost_audio(input_file, output_file, volume=1.5):
 def cleanup(file_path):
 
     if os.path.exists(file_path):
+
         os.remove(file_path)
+
 
 
 # -------------------------------------------------
 # Main Pipeline
 # -------------------------------------------------
 
-def create_boosted_video(url: str, volume: float = 1.5):
+def create_boosted_video(
+        url: str,
+        volume: float = 1.5
+):
 
-    video_file, uid = download_video(url)
 
-    output_file = f"static/outputs/{uid}.mp4"
+    os.makedirs(
+        OUTPUT_DIR,
+        exist_ok=True
+    )
+
+
+    video_file = download_video(url)
+
+
+    uid = uuid.uuid4().hex
+
+
+    output_file = os.path.join(
+        OUTPUT_DIR,
+        f"{uid}.mp4"
+    )
+
 
     boost_audio(
         video_file,
@@ -139,6 +294,8 @@ def create_boosted_video(url: str, volume: float = 1.5):
         volume
     )
 
+
     cleanup(video_file)
+
 
     return output_file
